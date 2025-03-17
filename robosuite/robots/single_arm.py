@@ -62,6 +62,7 @@ class SingleArm(Manipulator):
         mount_type="default",
         gripper_type="default",
         control_freq=20,
+        direct_gripper_control=False,
     ):
 
         self.controller = None
@@ -84,6 +85,8 @@ class SingleArm(Manipulator):
         self.recent_ee_vel = None  # Current and last eef velocity
         self.recent_ee_vel_buffer = None  # RingBuffer holding prior 10 values of velocity values
         self.recent_ee_acc = None  # Current and last eef acceleration
+
+        self.direct_gripper_control = direct_gripper_control
 
         super().__init__(
             robot_type=robot_type,

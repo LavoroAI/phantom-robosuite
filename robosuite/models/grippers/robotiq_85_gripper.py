@@ -16,7 +16,7 @@ class Robotiq85GripperBase(GripperModel):
     """
 
     def __init__(self, idn=0):
-        super().__init__(xml_path_completion("grippers/robotiq_gripper_85.xml"), idn=idn)
+        super().__init__(xml_path_completion("grippers/robotiq_gripper_85_v4.xml"), idn=idn)
 
     def format_action(self, action):
         return action

@@ -142,6 +142,7 @@ class RobotEnv(MujocoEnv):
         robot_configs=None,
         renderer="mujoco",
         renderer_config=None,
+        direct_gripper_control=False,
     ):
         # First, verify that correct number of robots are being inputted
         self.env_configuration = env_configuration
@@ -204,6 +205,7 @@ class RobotEnv(MujocoEnv):
                     "mount_type": mount_types[idx],
                     "initialization_noise": initialization_noise[idx],
                     "control_freq": control_freq,
+                    "direct_gripper_control": direct_gripper_control,
                 },
                 **robot_config,
             )

@@ -1,5 +1,6 @@
 from .arena import Arena
 from .table_arena import TableArena
+from .phantom_table_arena import PhantomTableArena
 from .multi_table_arena import MultiTableArena
 from .pegs_arena import PegsArena
 from .bins_arena import BinsArena
