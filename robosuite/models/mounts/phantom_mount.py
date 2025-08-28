@@ -1,5 +1,5 @@
 """
-Rethink's Alternative Mount (Officially used on Baxter).
+Phantom mount.
 """
 import numpy as np
 
@@ -7,7 +7,7 @@ from robosuite.models.mounts.mount_model import MountModel
 from robosuite.utils.mjcf_utils import xml_path_completion
 
 
-class RethinkMinimalMount(MountModel):
+class PhantomMount(MountModel):
     """
     Mount officially used for Rethink's Baxter Robot. Includes only a wheeled pedestal.
 
@@ -16,7 +16,7 @@ class RethinkMinimalMount(MountModel):
     """
 
     def __init__(self, idn=0):
-        super().__init__(xml_path_completion("mounts/rethink_minimal_mount.xml"), idn=idn)
+        super().__init__(xml_path_completion("mounts/phantom_mount.xml"), idn=idn)
 
     @property
     def top_offset(self):

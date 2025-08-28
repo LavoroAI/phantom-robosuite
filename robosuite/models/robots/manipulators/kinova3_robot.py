@@ -17,7 +17,7 @@ class Kinova3(ManipulatorModel):
 
     @property
     def default_mount(self):
-        return "RethinkMount"
+        return "PhantomMount"
 
     @property
     def default_gripper(self):
