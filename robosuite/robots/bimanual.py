@@ -56,6 +56,10 @@ class Bimanual(Manipulator):
         control_freq (float): how many control signals to receive
             in every second. This sets the amount of simulation time
             that passes between every action input.
+
+        direct_gripper_control (bool): if True, gripper actions are written straight to
+            the gripper's actuators. If False, they are treated as normalized [-1, 1]
+            commands and rescaled onto the actuator control range.
     """
 
     def __init__(
@@ -68,6 +72,7 @@ class Bimanual(Manipulator):
         mount_type="default",
         gripper_type="default",
         control_freq=20,
+        direct_gripper_control=False,
     ):
 
         self.controller = self._input2dict(None)
@@ -92,6 +97,8 @@ class Bimanual(Manipulator):
         self.recent_ee_vel = self._input2dict(None)  # Current and last eef velocity
         self.recent_ee_vel_buffer = self._input2dict(None)  # RingBuffer holding prior 10 values of velocity values
         self.recent_ee_acc = self._input2dict(None)  # Current and last eef acceleration
+
+        self.direct_gripper_control = direct_gripper_control
 
         super().__init__(
             robot_type=robot_type,

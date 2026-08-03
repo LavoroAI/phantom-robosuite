@@ -2,20 +2,16 @@
 from collections import OrderedDict
 
 import numpy as np
-import pdb 
 from scipy.spatial.transform import Rotation
 
 from robosuite.environments.manipulation.single_arm_env import SingleArmEnv
 from robosuite.environments.manipulation.two_arm_env import TwoArmEnv
-# from robosuite.models.arenas import TableArena
 from robosuite.models.arenas import TableArena2, EmptyArena
-from robosuite.models.objects import BoxObject
 from robosuite.models.tasks import ManipulationTask
-from robosuite.utils.mjcf_utils import CustomMaterial
+from robosuite.utils.mjcf_utils import CustomMaterial, find_elements
 from robosuite.utils.observables import Observable, sensor
 from robosuite.utils.placement_samplers import UniformRandomSampler
-from robosuite.utils.transform_utils import convert_quat
-from robosuite.models.objects import BoxObject, CylinderObject
+from robosuite.utils.transform_utils import convert_quat, mat2euler, quat2mat
 
 class PhantomBimanual(TwoArmEnv):
     """
@@ -208,6 +204,29 @@ class PhantomBimanual(TwoArmEnv):
         self.robot_base_height = 2.0
         self.robot_base_offset = -0.5
 
+        self.head_camera_suffix = "head_camera"
+
+        # How a single humanoid is placed. See _place_humanoid.
+        #   "egocentric" -- body stands under the camera, taking its lateral axis from
+        #                   the camera's, so the camera sits between the arms both in
+        #                   the world and in the image. 100% IK-feasible on epic demo 0.
+        #   "reach"      -- pose solved for hand reach with all 6 DoF free. Also
+        #                   feasible, but the fit drifts off-axis: on epic demo 0 it
+        #                   puts the camera 0.28 m to the body's right and 43 deg off
+        #                   its heading, so both arms enter the frame from one side.
+        #   "camera"     -- head camera anchored exactly on the real extrinsics. True
+        #                   egocentric view, but the human's head-to-hand distance
+        #                   exceeds the G1's reach, so the arms cannot work (left arm
+        #                   0% feasible).
+        self.humanoid_placement = "egocentric"
+        # Camera position in the pelvis frame: (forward, up). The lateral component is
+        # 0 by construction. Both numbers are fitted for hand reach against a single
+        # episode, and against an earlier body orientation at that, so re-fit them
+        # before trusting them on new data.
+        self.humanoid_camera_offset = (0.0, 0.70)
+        self.humanoid_base_pos = (0.38688, 0.29905, 1.35596)
+        self.humanoid_base_yaw = -1.19144
+
         super().__init__(
             robots=robots,
             env_configuration=env_configuration,
@@ -240,6 +259,106 @@ class PhantomBimanual(TwoArmEnv):
         self.object_placements = object_placements
         return super().reset()
 
+    def _humanoid_head_camera(self):
+        """
+        Prefixed name of the single robot's own head camera, or None if this setup has
+        no such robot (the two-arm cases, or a humanoid asset without the camera).
+        """
+        if len(self.robots) != 1:
+            return None
+        return next(
+            (c for c in self.robots[0].robot_model.cameras if c.endswith(self.head_camera_suffix)),
+            None,
+        )
+
+    def _place_humanoid(self):
+        """
+        Position and orient the single humanoid, per self.humanoid_placement.
+
+        The two-mount rule used for the two-arm setups puts each robot's base at a
+        human shoulder with a shoulder's orientation; a humanoid's base is its pelvis,
+        so the same numbers lay the whole body on its side. It needs its own rule.
+
+        "egocentric" (default) stands the pelvis under the camera and takes the body's
+        lateral axis from the camera's, which is what puts one arm either side of the
+        view -- see the derivation inline below. Only how far forward and how far below
+        the camera the pelvis sits is free, and both are fitted for hand reach.
+
+        "reach" places the pelvis where both arms can reach the whole trajectory, with
+        nothing tying it to the camera. Feasible, but the fit is free to rotate the body
+        away from the camera, which is how both arms once ended up on the same side.
+
+        "camera" anchors the robot's own head camera onto the extrinsics, which is exact
+        rather than fitted (T_base = T_camera_target @ inv(T_camera_in_base)). Not the
+        default because the extrinsics are a human's head, and a human's head-to-hand
+        distance is longer than the G1's arm.
+        """
+        robot_model = self.robots[0].robot_model
+
+        if self.humanoid_placement == "egocentric" and self.camera_pos is not None:
+            cam_R = quat2mat(convert_quat(np.array(self.camera_quat_wxyz), to="xyzw"))
+            # The body's lateral axis is the camera's, in full 3D. That is the only way
+            # to get both of the things "the camera sits between the arms" means, and a
+            # yaw alone cannot do it:
+            #
+            #   the body's sagittal plane projects to a line through the image centre
+            #     <=> the plane contains the optical axis  <=> left . cam_forward == 0
+            #   that line is vertical, so the arms fall either side of it
+            #     <=> the plane contains the camera's up axis  <=> left . cam_up == 0
+            #
+            # Both at once means left is perpendicular to cam_forward and cam_up, i.e.
+            # left = -cam_right. On epic demo 0 an upright body can satisfy one or the
+            # other -- yaw -0.439 or +0.153 -- and lands both arms on the same side
+            # either way. Taking the axis whole rolls the body by the camera's roll,
+            # 16 degrees here, which is invisible: only the arms are rendered.
+            left = -cam_R[:, 0]
+            left = left / max(np.linalg.norm(left), 1e-9)
+            up = np.array((0.0, 0.0, 1.0)) - np.dot((0.0, 0.0, 1.0), left) * left
+            up = up / max(np.linalg.norm(up), 1e-9)
+            forward = np.cross(left, up)
+            R = np.column_stack((forward, left, up))
+
+            fwd_off, up_off = self.humanoid_camera_offset
+            base_pos = np.array(self.camera_pos) - R @ np.array((fwd_off, 0.0, up_off))
+            robot_model.set_base_xpos(base_pos + robot_model.bottom_offset)
+            robot_model.set_base_ori(mat2euler(R))
+            return
+
+        if self.humanoid_placement == "reach":
+            xpos = np.array(self.humanoid_base_pos, dtype=float)
+            xpos[2] += robot_model.bottom_offset[2]
+            robot_model.set_base_xpos(xpos)
+            robot_model.set_base_ori(np.array((0.0, 0.0, self.humanoid_base_yaw)))
+            return
+
+        if self.camera_pos is None:
+            # No extrinsics supplied (a bare env, e.g. for tests). Stand it upright at
+            # the nominal base height rather than deriving from a camera we don't have.
+            robot_model.set_base_xpos(
+                np.array((0, 0, self.robot_base_height + self.robot_base_offset)) + robot_model.bottom_offset
+            )
+            return
+
+        # Camera pose in the robot's own base frame, from a standalone compile before
+        # the base is moved.
+        import mujoco
+
+        m = robot_model.get_model(mode="mujoco")
+        d = mujoco.MjData(m)
+        mujoco.mj_forward(m, d)
+        cid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_CAMERA, self._humanoid_head_camera())
+        bid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, robot_model.root_body)
+        base_R = d.xmat[bid].reshape(3, 3)
+        cam_in_base_R = base_R.T @ d.cam_xmat[cid].reshape(3, 3)
+        cam_in_base_p = base_R.T @ (d.cam_xpos[cid] - d.xpos[bid])
+
+        target_R = quat2mat(convert_quat(np.array(self.camera_quat_wxyz), to="xyzw"))
+        target_p = np.array(self.camera_pos)
+
+        R = target_R @ cam_in_base_R.T
+        robot_model.set_base_xpos(target_p - R @ cam_in_base_p + robot_model.bottom_offset)
+        robot_model.set_base_ori(mat2euler(R))
+
     def _load_model(self):
         """
         Loads an xml model, puts it in self.model
@@ -270,6 +389,9 @@ class PhantomBimanual(TwoArmEnv):
                 rot = np.array((rotation, 0, np.pi)) if count == 1 else np.array((rotation, 0, 0))
                 robot.robot_model.set_base_ori(rot)
                 count += 1
+        elif self.bimanual_setup == "shoulders" and self._humanoid_head_camera() is not None:
+            self._place_humanoid()
+
         elif self.bimanual_setup == "shoulders":
             count = 0
             for robot, offset, rotation in zip(self.robots, (-0.2, 0.2), (np.pi/3, -np.pi/3)):
@@ -298,16 +420,26 @@ class PhantomBimanual(TwoArmEnv):
 
         # Modify zed camera
         if self.camera_pos is not None:
+            intrinsics = {"sensorsize": np.array2string(self.camera_sensorsize)[1:-1],
+                          "resolution": f"{self.camera_widths[0]} {self.camera_heights[0]}",
+                          "principalpixel": np.array2string(self.camera_principalpixel)[1:-1],
+                          "focalpixel": np.array2string(self.camera_focalpixel)[1:-1]}
 
-            mujoco_arena.set_camera(
-                camera_name="zed",
-                pos=self.camera_pos,
-                quat=self.camera_quat_wxyz,
-                camera_attribs={"sensorsize": np.array2string(self.camera_sensorsize)[1:-1], 
-                                "resolution": f"{self.camera_widths[0]} {self.camera_heights[0]}",
-                                "principalpixel": np.array2string(self.camera_principalpixel)[1:-1],
-                                "focalpixel": np.array2string(self.camera_focalpixel)[1:-1],}
-            )
+            head_camera = self._humanoid_head_camera() if self.humanoid_placement == "camera" else None
+            if head_camera is not None:
+                # Only the intrinsics: this camera is rigidly fixed to the robot's
+                # torso, and _place_humanoid has already put it at self.camera_pos.
+                cam = find_elements(root=self.robots[0].robot_model.worldbody, tags="camera",
+                                    attribs={"name": head_camera}, return_first=True)
+                for attrib, value in intrinsics.items():
+                    cam.set(attrib, value)
+            else:
+                mujoco_arena.set_camera(
+                    camera_name="zed",
+                    pos=self.camera_pos,
+                    quat=self.camera_quat_wxyz,
+                    camera_attribs=intrinsics,
+                )
 
     def _setup_references(self):
         """
