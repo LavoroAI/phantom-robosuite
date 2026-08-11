@@ -22,6 +22,11 @@ class Robotiq85GripperRealKinovaBase(GripperModel):
         return action
 
     @property
+    def opposed_actuators(self):
+        # Two actuators, one per finger, both driven the same way.
+        return False
+
+    @property
     def init_qpos(self):
         return np.array([-0.026, -0.267, -0.200, -0.026, -0.267, -0.200])
         # return np.array([0.00227, 0.000136, 0.00247, -0.00267, 0.00227, 0.000136, 0.00247, -0.00267])

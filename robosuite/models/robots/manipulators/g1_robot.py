@@ -31,7 +31,7 @@ class G1(ManipulatorModel):
         Returns:
             dict: Dictionary containing arm-specific gripper names
         """
-        return {"right": "Robotiq85Gripper", "left": "Robotiq85Gripper"}
+        return {"right": "Dex1Gripper", "left": "Dex1Gripper"}
 
     @property
     def default_controller_config(self):

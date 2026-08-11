@@ -181,6 +181,7 @@
                             </body>
                           </body>
                         </body>
+                        <geom name="right_elbow_band" type="cylinder" pos="0.0844 -0.0035 -0.0106" zaxis="1 0 0" size="0.0302 0.0135" contype="0" conaffinity="0" group="1" density="0" rgba="0.2 0.2 0.2 1" />
                       </body>
                     </body>
                   </body>
@@ -221,12 +222,13 @@
                               <body name="left_eef" pos="0.0415 0 0" quat="0.5 0.5 0.5 0.5">
                                 <site name="left_eef_site" pos="0 0 0" size="0.01" rgba="1 0.3 0.3 1" group="2" />
                                 <body name="left_mount" quat="0 0 1 0" />
-                                <body name="left_hand_eefd" pos="0 0 0" />
+                                <body name="left_hand_eef" pos="0 0 0" />
                                 <camera mode="fixed" name="eye_in_left_hand" pos="-0.05 -0.15 0.0" quat="0.000000 -0.000000 -0.258819 0.965926" fovy="75" />
                               </body>
                             </body>
                           </body>
                         </body>
+                        <geom name="left_elbow_band" type="cylinder" pos="0.0844 0.0034 -0.0107" zaxis="1 0 0" size="0.0302 0.0135" contype="0" conaffinity="0" group="1" density="0" rgba="0.2 0.2 0.2 1" />
                       </body>
                     </body>
                   </body>

@@ -23,10 +23,10 @@ class Manipulator(Robot):
         """
         actuator_idxs = [self.sim.model.actuator_name2id(actuator) for actuator in gripper.actuators]
         if self.direct_gripper_control:
-            if "Robotiq85" in gripper.name:
-                applied_gripper_action = gripper_action[0]
-            else:
+            if gripper.opposed_actuators:
                 applied_gripper_action = [gripper_action[0], -gripper_action[0]]
+            else:
+                applied_gripper_action = gripper_action[0]
         else:
             gripper_action_actual = gripper.format_action(gripper_action)
             # rescale normalized gripper action to control ranges

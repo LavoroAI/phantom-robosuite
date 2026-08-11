@@ -1,0 +1,128 @@
+<!--
+  Unitree Dex1-1, the parallel jaw that ships on the G1's wrist_yaw_link.
+
+  Hand-authored from unitreerobotics/unitree_ros, robots/g1_description/
+  g1_29dof_mode_15_with_dex1_1.urdf (BSD-3-Clause, (c) HangZhou YuShu Technology).
+  There is no MJCF for Dex1-1 upstream: g1_29dof_with_hand.xml and menagerie's
+  g1_with_hands.xml are both the 7-DoF Dex3-1, and it is three bodies and two
+  joints, so this is transcribed rather than converted. Link masses, inertias,
+  mesh names and joint ranges are the URDF's verbatim.
+
+  Frames: the URDF expresses the hand in the wrist frame, where the arm extends
+  along +x. robosuite grippers approach along +z, and the G1 asset already rotates
+  its eef bodies by Ry(90) to match (see tools/build_g1_asset.py). So the geometry
+  hangs off dex1_base, which carries the inverse rotation, and everything inside it
+  is in URDF coordinates. The mount itself sits at the origin: Unitree attaches the
+  hand at xyz="0.0415 0 0" on wrist_yaw_link, which is exactly where the asset puts
+  the eef body.
+-->
+<mujoco model="dex1_1_gripper">
+  <compiler angle="radian" meshdir="assets" autolimits="true"/>
+
+  <asset>
+    <!-- No materials: the geoms carry the G1's own 0.2 0.2 0.2 directly, as robot.xml does. -->
+    <mesh name="dex1_base" file="meshes/dex1_1_gripper/Dex1_base_link.STL"/>
+    <mesh name="dex1_finger_1" file="meshes/dex1_1_gripper/Dex1_finger_link_1.STL"/>
+    <mesh name="dex1_finger_2" file="meshes/dex1_1_gripper/Dex1_finger_link_2.STL"/>
+    <mesh name="dex1_finger_1_col" file="meshes/dex1_1_gripper/dex1_col_1.stl"/>
+    <mesh name="dex1_finger_2_col" file="meshes/dex1_1_gripper/dex1_col_2.stl"/>
+  </asset>
+
+  <worldbody>
+    <body name="base_mount" pos="0 0 0">
+      <site name="ft_frame" pos="0 0 0" size="0.01 0.01 0.01" rgba="1 0 0 1" type="sphere" group="1"/>
+
+      <!--
+        The grasp centre: the flat inner face of each pad runs from x 0.100 to 0.135
+        in URDF coordinates, so the middle of it is 0.1175 past the mount. The tip
+        lip beyond it (to 0.143) closes 6 mm further but is only 6 mm long.
+        This offset is the arm's effective extension (OSC drives grip_site, not the
+        eef body) so it is worth 3.75 cm against Robotiq85's 0.155 m.
+
+        The frame is left unrolled, so it is the geometric one: +z approaches and +y is
+        the jaw opening axis, both straight off Unitree's mount. Robotiq85 rolls its own
+        eef body -90 degrees and then sits its jaws a further 45 off that, and phantom's
+        wrist corrections were swept against the result. The offset between the two
+        conventions is a constant in humanoid_utils.wrist_correction, not a number
+        invented here: it describes the hand-to-gripper mapping, not the hardware.
+      -->
+      <body name="eef" pos="0 0 0.1175">
+        <site name="grip_site" pos="0 0 0" size="0.01 0.01 0.01" rgba="1 0 0 0.5" type="sphere"/>
+        <site name="ee_x" pos="0.1 0 0" size="0.005 .1" quat="0.707105 0 0.707108 0" rgba="1 0 0 0" type="cylinder"/>
+        <site name="ee_y" pos="0 0.1 0" size="0.005 .1" quat="0.707105 0.707108 0 0" rgba="0 1 0 0" type="cylinder"/>
+        <site name="ee_z" pos="0 0 0.1" size="0.005 .1" quat="1 0 0 0" rgba="0 0 1 0" type="cylinder"/>
+        <site name="grip_site_cylinder" pos="0 0 0" size="0.005 10" rgba="0 1 0 0.3" type="cylinder"/>
+      </body>
+
+      <!-- Ry(-90): +x of everything below is the approach direction. -->
+      <body name="dex1_base" pos="0 0 0" quat="0.7071068 0 -0.7071068 0">
+        <inertial pos="0.043853 -0.0001306 1.4003e-05" mass="0.19138"
+          fullinertia="7.4842e-05 5.861e-05 3.9364e-05 1.6252e-07 -8.0516e-09 -3.5931e-08"/>
+        <geom name="base_visual" type="mesh" mesh="dex1_base" rgba="0.2 0.2 0.2 1"
+          contype="0" conaffinity="0" group="1"/>
+        <!-- The URDF collides the base against its own 56k-triangle visual mesh. Its
+             convex hull is a box to within a couple of millimetres, and the hull of
+             that many triangles is recomputed on every env build. -->
+        <geom name="base_collision" type="box" pos="0.03465 0 0" size="0.03465 0.029 0.031"/>
+
+        <body name="finger_1" pos="0 0 0">
+          <inertial pos="0.073453 -0.011173 0.0086355" mass="0.086783"
+            fullinertia="2.5583e-05 1.4549e-05 3.6013e-05 5.1557e-07 -6.3178e-07 7.8542e-08"/>
+          <joint name="finger_joint_1" type="slide" axis="0 -1 0" range="-0.02 0.0245"
+            limited="true" damping="10" armature="0.001"/>
+          <geom name="finger1_visual" type="mesh" mesh="dex1_finger_1" rgba="0.2 0.2 0.2 1"
+            contype="0" conaffinity="0" group="1"/>
+          <geom name="finger1_collision" type="mesh" mesh="dex1_finger_1_col"
+            friction="0.7" solimp="0.95 0.99 0.001" solref="0.004 1" priority="1"/>
+        </body>
+
+        <body name="finger_2" pos="0 0 0">
+          <inertial pos="0.073453 0.011173 -0.0086355" mass="0.086783"
+            fullinertia="2.5583e-05 1.4549e-05 3.6013e-05 -5.1557e-07 6.3178e-07 7.8542e-08"/>
+          <joint name="finger_joint_2" type="slide" axis="0 1 0" range="-0.02 0.0245"
+            limited="true" damping="10" armature="0.001"/>
+          <geom name="finger2_visual" type="mesh" mesh="dex1_finger_2" rgba="0.2 0.2 0.2 1"
+            contype="0" conaffinity="0" group="1"/>
+          <geom name="finger2_collision" type="mesh" mesh="dex1_finger_2_col"
+            friction="0.7" solimp="0.95 0.99 0.001" solref="0.004 1" priority="1"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="dex1_base" body2="finger_1"/>
+    <exclude body1="dex1_base" body2="finger_2"/>
+    <exclude body1="finger_1" body2="finger_2"/>
+  </contact>
+
+  <!--
+    Unitree gives the two fingers independent joints with mirrored axes, so both open
+    on positive travel. A real parallel jaw is one motor on one screw, so they are
+    coupled here rather than actuated separately: the equality keeps them equal and
+    the tendon splits the force, which leaves the tendon length equal to the travel of
+    either finger. Actuator ctrl is therefore that travel, in metres, open-positive.
+    See _convert_handgripper_pos_to_action in phantom/twin_bimanual_robot.py.
+  -->
+  <tendon>
+    <fixed name="dex1_split">
+      <joint joint="finger_joint_1" coef="0.5"/>
+      <joint joint="finger_joint_2" coef="0.5"/>
+    </fixed>
+  </tendon>
+
+  <equality>
+    <joint joint1="finger_joint_1" joint2="finger_joint_2" polycoef="0 1 0 0 0"
+      solimp="0.95 0.99 0.001" solref="0.005 1"/>
+  </equality>
+
+  <actuator>
+    <position name="fingers_actuator" tendon="dex1_split" kp="1000"
+      ctrlrange="-0.02 0.0245" forcerange="-40 40"/>
+  </actuator>
+
+  <sensor>
+    <force name="force_ee" site="ft_frame"/>
+    <torque name="torque_ee" site="ft_frame"/>
+  </sensor>
+</mujoco>

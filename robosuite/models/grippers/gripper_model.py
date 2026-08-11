@@ -52,6 +52,23 @@ class GripperModel(MujocoXMLModel):
         return "gripper{}_".format(self.idn)
 
     @property
+    def opposed_actuators(self):
+        """
+        Whether a direct gripper command drives this gripper's actuators against each
+        other -- true of the two-finger grippers whose joints share an axis, where
+        Manipulator.grip_action sends [a, -a]. False sends the one command to every
+        actuator, which is what a gripper wants if its fingers are mechanically coupled
+        or its joint axes are already mirrored.
+
+        Only consulted under direct_gripper_control; the normalized path goes through
+        format_action instead.
+
+        Returns:
+            bool: True if the second actuator takes the negated command
+        """
+        return True
+
+    @property
     def speed(self):
         """
         How quickly the gripper opens / closes
